@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dungeon GM Sheet</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rpg-awesome@0.2.0/css/rpg-awesome.min.css">
+  <style>
+    @page { size: A4 landscape; margin: 6mm; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      color: #1a1a1a;
+      background: #888;
+    }
+
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      padding: 6mm;
+      margin: 10mm auto;
+      background: #fff;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+
+    /* two columns spread the content across the wide landscape sheet */
+    .columns {
+      flex: 1;
+      display: flex;
+      gap: 8mm;
+      align-items: stretch;
+    }
+    .col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+    .col-left  { flex: 1.05; }
+    .col-right {
+      flex: 1;
+      padding-left: 8mm;
+      border-left: 1px solid #ccc;
+    }
+
+    @media print {
+      body { background: none; }
+      .page { margin: 0; box-shadow: none; min-height: auto; }
+    }
+
+    /* --- Header --- */
+
+    .sheet-title {
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-bottom: 1.5px solid #1a1a1a;
+      padding-bottom: 1.5mm;
+    }
+
+    /* --- Section headings --- */
+
+    .section-head {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 1mm;
+    }
+
+    section { display: flex; flex-direction: column; }
+
+    p { margin-bottom: 1.5mm; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ordered + bulleted lists */
+    ol, ul { margin: 0 0 0 5mm; }
+    li { margin-bottom: 1.2mm; }
+    li:last-child { margin-bottom: 0; }
+
+    .tag { font-weight: 700; }
+
+    /* --- The dungeon turn banner --- */
+
+    /* --- Forms of time table --- */
+
+    .time-table {
+      border-collapse: collapse;
+      width: 100%;
+      border: 1.5px solid #333;
+    }
+    .time-table th {
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #444;
+      border-bottom: 1.5px solid #333;
+      padding: 1mm 2mm;
+      text-align: left;
+    }
+    .time-table td {
+      border-bottom: 1px solid #ccc;
+      padding: 1.5mm 2mm;
+      vertical-align: middle;
+    }
+    .time-table tr:last-child td { border-bottom: none; }
+
+    .t-icon {
+      width: 13mm;
+      text-align: center;
+      border-right: 1px solid #ccc;
+      color: #444;
+    }
+    .t-icon .ra { font-size: 15pt; line-height: 1; }
+    .t-icon svg { width: 9mm; height: 9mm; }
+
+    .t-span {
+      width: 26mm;
+      font-weight: 700;
+      border-right: 1px solid #ccc;
+      white-space: nowrap;
+    }
+    .t-unit { font-weight: 400; color: #666; font-size: 8pt; display: block; }
+
+    /* --- A simple cost / reference table --- */
+
+    .ref-table {
+      border-collapse: collapse;
+      width: 100%;
+      border: 1.5px solid #333;
+    }
+    .ref-table th {
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #444;
+      border-bottom: 1.5px solid #333;
+      padding: 1mm 2mm;
+      text-align: left;
+    }
+    .ref-table td {
+      border-bottom: 1px solid #ccc;
+      padding: 1.5mm 2mm;
+      vertical-align: top;
+    }
+    .ref-table tr:last-child td { border-bottom: none; }
+    .ref-table .cost {
+      width: 24mm;
+      font-weight: 700;
+      white-space: nowrap;
+      border-right: 1px solid #ccc;
+    }
+
+    .note {
+      font-size: 8.5pt;
+      color: #555;
+      border-left: 2px solid #bbb;
+      padding-left: 2.5mm;
+      margin-top: 1mm;
+    }
+  </style>
+</head>
+<body>
+  <!-- reusable 3-wedge turn circle (one wedge = one 10-minute turn) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="turn-circle" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="18" fill="#fff" stroke="#1a1a1a" stroke-width="2"/>
+      <line x1="20" y1="20" x2="20"   y2="2"  stroke="#1a1a1a" stroke-width="1.4"/>
+      <line x1="20" y1="20" x2="35.6" y2="29" stroke="#1a1a1a" stroke-width="1.4"/>
+      <line x1="20" y1="20" x2="4.4"  y2="29" stroke="#1a1a1a" stroke-width="1.4"/>
+    </symbol>
+  </svg>
+
+  <div id="root"></div>
+
+  <script>
+    const CIRCLE = '<svg><use href="#turn-circle"/></svg>';
+
+    // --- assemble the page ---------------------------------------------------
+    document.getElementById("root").innerHTML =
+      `<div class="page">` +
+
+        `<div class="sheet-title">Dungeon GM</div>` +
+
+        `<div class="columns">` +
+
+        // ================= LEFT COLUMN =================
+        `<div class="col col-left">` +
+
+        // ---------- Forms of time ----------
+        `<section>` +
+          `<div class="section-head">The Forms of Time</div>` +
+          `<p>Underground, everything is counted in <span class="tag">turns</span> of ten minutes ` +
+          `&mdash; long enough to cross a chamber with care, search a body, or catch your breath. ` +
+          `Six turns make an hour.</p>` +
+          `<table class="time-table">` +
+            `<thead><tr><th></th><th>Span</th><th>What happens</th></tr></thead>` +
+            `<tbody>` +
+              `<tr>` +
+                `<td class="t-icon">${CIRCLE}</td>` +
+                `<td class="t-span">10 minutes<span class="t-unit">1 turn</span></td>` +
+                `<td>The base beat. One action fills a turn: move, search, listen, rest.</td>` +
+              `</tr>` +
+              `<tr>` +
+                `<td class="t-icon"><i class="ra ra-dice-six"></i></td>` +
+                `<td class="t-span">30 minutes<span class="t-unit">3 turns</span></td>` +
+                `<td>Roll for <span class="tag">wandering monsters</span> (typically 1-in-6).</td>` +
+              `</tr>` +
+              `<tr>` +
+                `<td class="t-icon"><i class="ra ra-torch"></i></td>` +
+                `<td class="t-span">60 minutes<span class="t-unit">6 turns</span></td>` +
+                `<td>A <span class="tag">torch burns out</span>. Light a new one or lose the light.</td>` +
+              `</tr>` +
+              `<tr>` +
+                `<td class="t-icon"><i class="ra ra-lantern-flame"></i></td>` +
+                `<td class="t-span">4 hours<span class="t-unit">1 watch</span></td>` +
+                `<td>A flask of oil keeps a <span class="tag">lantern</span> lit this long &mdash; ` +
+                `one <span class="tag">watch</span>, the unit of the overland day.</td>` +
+              `</tr>` +
+            `</tbody>` +
+          `</table>` +
+          `<p class="note">Above ground, time runs on watches and the 6-segment day clock ` +
+          `&mdash; see the Overland sheet.</p>` +
+        `</section>` +
+
+        // ---------- The turn, step by step ----------
+        `<section>` +
+          `<div class="section-head">A Turn, Step by Step</div>` +
+          `<ol>` +
+            `<li><span class="tag">Wandering monsters.</span> Where a check is due (typically ` +
+            `<span class="tag">1-in-6 every 3 turns</span>), roll. Noise, light and lingering all ` +
+            `draw things closer.</li>` +
+            `<li><span class="tag">Upkeep.</span> Mark off light and any timed effect. A torch is ` +
+            `spent after 6 turns; an oil flask after an hour of lantern.</li>` +
+            `<li><span class="tag">Declare.</span> The party says what it does this turn: move, ` +
+            `search, listen, force a door, rest.</li>` +
+            `<li><span class="tag">Resolve.</span> One action fills the turn. Move at the careful ` +
+            `dungeon pace, search the 10-by-10, pick the lock.</li>` +
+            `<li><span class="tag">Describe &amp; map.</span> Tell them what they find, let them ` +
+            `update the map, then advance the turn.</li>` +
+          `</ol>` +
+        `</section>` +
+
+        // ---------- Common time costs ----------
+        `<section>` +
+          `<div class="section-head">What a Turn Buys</div>` +
+          `<table class="ref-table">` +
+            `<thead><tr><th>Cost</th><th>Action</th></tr></thead>` +
+            `<tbody>` +
+              `<tr><td class="cost">1 turn</td><td>Move carefully through explored ground, mapping as you go.</td></tr>` +
+              `<tr><td class="cost">1 turn</td><td>Search a 10-by-10 area for traps, secret doors or hidden things.</td></tr>` +
+              `<tr><td class="cost">1 turn</td><td>Force a stuck door, pick a lock, or pry loose a fitting.</td></tr>` +
+              `<tr><td class="cost">1 turn</td><td>Rest and catch your breath after a fight or a flight.</td></tr>` +
+              `<tr><td class="cost">part of a turn</td><td>Listen at a door &mdash; quick, but the clock still turns.</td></tr>` +
+            `</tbody>` +
+          `</table>` +
+        `</section>` +
+
+        `</div>` + // end col-left
+
+        // ================= RIGHT COLUMN =================
+        `<div class="col col-right">` +
+
+        // ---------- Light & darkness ----------
+        `<section>` +
+          `<div class="section-head">Light &amp; Darkness</div>` +
+          `<p>Light is a resource that burns down like any other. Whoever holds it has a hand ` +
+          `full, and the dark beyond its edge is where the dungeon hides.</p>` +
+          `<ul>` +
+            `<li><span class="tag">Torch:</span> burns <span class="tag">6 turns</span> (one hour), ` +
+            `lights roughly 30 feet, and gutters in wind. Carry spares.</li>` +
+            `<li><span class="tag">Lantern:</span> a flask of oil keeps it lit a full hour too, ` +
+            `with steadier light that can be hooded to hide.</li>` +
+            `<li><span class="tag">No light:</span> most cannot see in the dark. Without it the ` +
+            `party crawls, cannot map, search or read, and fights at a penalty.</li>` +
+            `<li><span class="tag">You are seen first:</span> a lit party throws a glow down the ` +
+            `corridor and surprises nothing. Snuffing the light cuts both ways.</li>` +
+          `</ul>` +
+        `</section>` +
+
+        // ---------- Wandering monsters ----------
+        `<section>` +
+          `<div class="section-head">Wandering Monsters</div>` +
+          `<p>Check <span class="tag">1-in-6 every 3 turns</span> (30 minutes), more often where ` +
+          `the party is loud or slow. A check that lands does not appear on top of them: it puts ` +
+          `something on the move, a few turns away and closing.</p>` +
+          `<p class="note">Wanderers are the dungeon's clock made flesh. They punish dawdling, ` +
+          `drain light and torches, and turn a safe room restless. Used well, they are pressure, ` +
+          `not punishment.</p>` +
+        `</section>` +
+
+        // ---------- Resting below ----------
+        `<section>` +
+          `<div class="section-head">Resting Below</div>` +
+          `<p>A breather costs a turn. Real recovery wants longer and a defensible spot, and even ` +
+          `then the wandering checks keep rolling. The dungeon does not pause because the party ` +
+          `is tired.</p>` +
+        `</section>` +
+
+        `</div>` + // end col-right
+
+        `</div>` + // end columns
+
+      `</div>`;
+  </script>
+</body>
+</html>

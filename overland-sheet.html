@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Overland Sheet</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rpg-awesome@0.2.0/css/rpg-awesome.min.css">
+  <style>
+    @page { size: A4 landscape; margin: 6mm; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      color: #1a1a1a;
+      background: #888;
+    }
+
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      padding: 6mm;
+      margin: 10mm auto;
+      background: #fff;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+
+    /* two columns spread the content across the wide landscape sheet */
+    .columns {
+      flex: 1;
+      display: flex;
+      gap: 8mm;
+      align-items: stretch;
+    }
+    .col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+    .col-left  { flex: 1.05; }
+    .col-right {
+      flex: 1;
+      padding-left: 8mm;
+      border-left: 1px solid #ccc;
+    }
+
+    @media print {
+      body { background: none; }
+      .page { margin: 0; box-shadow: none; min-height: auto; }
+    }
+
+    /* --- Header --- */
+
+    .sheet-title {
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-bottom: 1.5px solid #1a1a1a;
+      padding-bottom: 1.5mm;
+    }
+
+    /* --- Section headings --- */
+
+    .section-head {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 1mm;
+    }
+
+    section { display: flex; flex-direction: column; }
+
+    p { margin-bottom: 1.5mm; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ordered + bulleted lists */
+    ol, ul { margin: 0 0 0 5mm; }
+    li { margin-bottom: 1.2mm; }
+    li:last-child { margin-bottom: 0; }
+
+    .tag {
+      font-weight: 700;
+    }
+
+    /* --- Travel & watches --- */
+
+    .travel-grid {
+      display: flex;
+      gap: 6mm;
+      align-items: stretch;
+    }
+
+    .travel-text { flex: 1; }
+
+    .watch-strip {
+      flex: 0 0 46mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5mm;
+      border-left: 1px solid #ccc;
+      padding-left: 5mm;
+    }
+
+    .watch-strip svg.clock { width: 30mm; height: 30mm; }
+    .watch-strip .caption { font-size: 7.5pt; color: #666; text-align: center; }
+
+    /* --- Terrain & pace table --- */
+
+    .pace-table {
+      border-collapse: collapse;
+      width: 100%;
+      border: 1.5px solid #333;
+    }
+    .pace-table th {
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #444;
+      border-bottom: 1.5px solid #333;
+      padding: 1mm 2mm;
+      text-align: left;
+    }
+    .pace-table td {
+      border-bottom: 1px solid #ccc;
+      padding: 1.5mm 2mm;
+      vertical-align: top;
+    }
+    .pace-table tr:last-child td { border-bottom: none; }
+    .pace-table .tier {
+      width: 18mm;
+      font-weight: 700;
+      border-right: 1px solid #ccc;
+      white-space: nowrap;
+    }
+    .pace-table .cost {
+      width: 18mm;
+      font-weight: 700;
+      text-align: center;
+      border-right: 1px solid #ccc;
+      white-space: nowrap;
+    }
+
+    /* --- Fatigue dice chain --- */
+
+    .fatigue-chain {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1.5mm;
+      margin: 2mm 0;
+    }
+    .fatigue-chain .die {
+      border: 1.2px solid #1a1a1a;
+      border-radius: 1.5mm;
+      padding: 0.6mm 2.2mm;
+      font-weight: 700;
+    }
+    .fatigue-chain .die.end {
+      background: #1a1a1a;
+      color: #fff;
+      border-color: #1a1a1a;
+    }
+    .fatigue-chain .arr { color: #999; font-weight: 700; }
+
+    .note {
+      font-size: 8.5pt;
+      color: #555;
+      border-left: 2px solid #bbb;
+      padding-left: 2.5mm;
+      margin-top: 1mm;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // --- shared geometry helpers --------------------------------------------
+
+    function pt(cx, cy, r, deg) {
+      const a = (deg * Math.PI) / 180;
+      return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+    }
+
+    // --- the 6-watch day clock (shared with the season sheets) ---------------
+    const WATCH_TONES = ["night", "dusk", "day", "day", "dusk", "night"];
+    const TONE_FILL = { night: "#c9c9c9", dusk: "#ececec", day: "#ffffff" };
+
+    function dayClock(arrow) {
+      const cx = 20, cy = 20, r = 18;
+      let wedges = "";
+      for (let i = 0; i < 6; i++) {
+        const [x0, y0] = pt(cx, cy, r, i * 60);
+        const [x1, y1] = pt(cx, cy, r, (i + 1) * 60);
+        wedges += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} `
+                + `A${r},${r} 0 0 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" `
+                + `fill="${TONE_FILL[WATCH_TONES[i]]}" stroke="#1a1a1a" stroke-width="1.2"/>`;
+      }
+      if (arrow) {
+        // a small arrow pointing into the first wedge (top-right): the day starts here
+        wedges += `<line x1="34" y1="-4.25" x2="31" y2="0.95" stroke="#1a1a1a" stroke-width="1.4"/>`
+                + `<polygon points="29.25,3.98 32.73,1.95 29.27,-0.05" fill="#1a1a1a"/>`;
+      }
+      const vb = arrow ? "-3 -6 46 46" : "0 0 40 40";
+      return `<svg class="clock" viewBox="${vb}">${wedges}</svg>`;
+    }
+
+    // --- assemble the page ---------------------------------------------------
+    document.getElementById("root").innerHTML =
+      `<div class="page">` +
+
+        `<div class="sheet-title">Overland</div>` +
+
+        `<div class="columns">` +
+
+        // ================= LEFT COLUMN =================
+        `<div class="col col-left">` +
+
+        // ---------- Travel & Watches ----------
+        `<section>` +
+          `<div class="section-head">Travel &amp; Watches &mdash; The Overland Day</div>` +
+          `<div class="travel-grid">` +
+            `<div class="travel-text">` +
+              `<p>A day is <span class="tag">6 watches</span>. The party spends them, and the day ` +
+              `is gone whether they walked far or not.</p>` +
+              `<ul>` +
+                `<li><span class="tag">Travel:</span> spend watches to march into adjacent hexes; ` +
+                `terrain sets the cost. The first <span class="tag">3 watches</span> of marching a ` +
+                `day are free; each watch beyond rolls your fatigue die.</li>` +
+                `<li><span class="tag">Explore:</span> spend a watch to <span class="tag">explore ` +
+                `the current hex</span> &mdash; search it out, find the lair, the spring, the ruin. ` +
+                `This eats one of the day's watches like a march does.</li>` +
+              `</ul>` +
+            `</div>` +
+            `<div class="watch-strip">` +
+              `<div class="section-head" style="margin:0;">One Day</div>` +
+              dayClock(true) +
+              `<div class="caption">6 watches &times; 4 hours</div>` +
+            `</div>` +
+          `</div>` +
+        `</section>` +
+
+        // ---------- Terrain & Pace ----------
+        `<section>` +
+          `<div class="section-head">Terrain &amp; Pace</div>` +
+          `<p>Marching into a hex costs watches by its terrain:</p>` +
+          `<table class="pace-table">` +
+            `<thead><tr><th>Ground</th><th>Cost</th><th>Terrain</th></tr></thead>` +
+            `<tbody>` +
+              `<tr><td class="tier">Open</td><td class="cost">1 watch</td><td>plains, road, gentle hills, desert flats</td></tr>` +
+              `<tr><td class="tier">Rough</td><td class="cost">2 watches</td><td>forest, hills, dunes, marsh edge, badlands</td></tr>` +
+              `<tr><td class="tier">Harsh</td><td class="cost">3 watches</td><td>mountains, swamp, dense jungle, ice</td></tr>` +
+            `</tbody>` +
+          `</table>` +
+          `<p class="note">A road or navigable river runs a hex at Open pace, whatever the land ` +
+          `around it.</p>` +
+        `</section>` +
+
+        `</div>` + // end col-left
+
+        // ================= RIGHT COLUMN =================
+        `<div class="col col-right">` +
+
+        // ---------- Camping & Rest ----------
+        `<section>` +
+          `<div class="section-head">Camping &amp; Rest &mdash; The Night</div>` +
+          `<p>At camp, characters can take <span class="tag">camping actions</span>:</p>` +
+          `<ul>` +
+            `<li><span class="tag">Rest:</span> uninterrupted sleep. A full <span class="tag">two ` +
+            `watches</span> holds your fatigue die steady; sleep less and it slips (see Fatigue).</li>` +
+            `<li><span class="tag">Keep watch:</span> stay awake to guard the camp. A guard is ` +
+            `not resting.</li>` +
+            `<li><span class="tag">Craft or repair:</span> mend gear, fix weapons and armour, ` +
+            `or make a small item.</li>` +
+            `<li><span class="tag">Prepare food &amp; drink:</span> cook a proper meal for the ` +
+            `party.</li>` +
+            `<li><span class="tag">Forage or hunt:</span> gather, fish or hunt to refill the ` +
+            `larder.</li>` +
+            `<li><span class="tag">Entertain:</span> games, stories, music and the like. Eases ` +
+            `the party's stress.</li>` +
+          `</ul>` +
+        `</section>` +
+
+        // ---------- Fatigue ----------
+        `<section>` +
+          `<div class="section-head">Fatigue</div>` +
+          `<p>Each character carries a <span class="tag">fatigue die</span>, fresh at d12. It steps ` +
+          `down the chain as the journey grinds on, and only a town mends it.</p>` +
+          `<div class="fatigue-chain">` +
+            `<span class="die">d12</span><span class="arr">&rarr;</span>` +
+            `<span class="die">d10</span><span class="arr">&rarr;</span>` +
+            `<span class="die">d8</span><span class="arr">&rarr;</span>` +
+            `<span class="die">d6</span><span class="arr">&rarr;</span>` +
+            `<span class="die">d4</span><span class="arr">&rarr;</span>` +
+            `<span class="die end">Exhausted</span>` +
+          `</div>` +
+          `<ul>` +
+            `<li><span class="tag">March:</span> the first <span class="tag">3 watches</span> of ` +
+            `marching a day are free. Each watch beyond, roll the die; on a ` +
+            `<span class="tag">1 or 2</span> it steps down.</li>` +
+            `<li><span class="tag">Night:</span> a <span class="tag">full rest</span> holds the die ` +
+            `steady; a <span class="tag">single watch</span> of rest, roll it; ` +
+            `<span class="tag">no rest</span> steps it down for sure.</li>` +
+            `<li><span class="tag">Town:</span> each day's rest in a settlement steps the die back ` +
+            `up one size.</li>` +
+            `<li><span class="tag">Exhausted:</span> step down from d4 and you can no longer march, ` +
+            `acting at a penalty until you reach a town.</li>` +
+          `</ul>` +
+        `</section>` +
+
+        `</div>` + // end col-right
+
+        `</div>` + // end columns
+
+      `</div>`;
+  </script>
+</body>
+</html>

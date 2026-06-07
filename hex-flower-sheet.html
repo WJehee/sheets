@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hex Flower Sheet</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rpg-awesome@0.2.0/css/rpg-awesome.min.css">
+  <style>
+    @page { size: A4 landscape; margin: 6mm; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      color: #1a1a1a;
+      background: #888;
+    }
+
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      padding: 6mm;
+      margin: 10mm auto;
+      background: #fff;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+
+    /* two columns spread the content across the wide landscape sheet */
+    .columns {
+      flex: 1;
+      display: flex;
+      gap: 8mm;
+      align-items: stretch;
+    }
+    .col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3mm;
+    }
+    .col-left  { flex: 1.05; }
+    .col-right {
+      flex: 1;
+      padding-left: 8mm;
+      border-left: 1px solid #ccc;
+    }
+
+    @media print {
+      body { background: none; }
+      .page { margin: 0; box-shadow: none; min-height: auto; }
+    }
+
+    /* --- Header --- */
+
+    .sheet-title {
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-bottom: 1.5px solid #1a1a1a;
+      padding-bottom: 1.5mm;
+    }
+
+    /* --- Section headings --- */
+
+    .section-head {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 1mm;
+    }
+
+    section { display: flex; flex-direction: column; }
+
+    p { margin-bottom: 1.5mm; }
+    p:last-child { margin-bottom: 0; }
+
+    /* --- Hex flower engine --- */
+
+    .hex-engine {
+      display: flex;
+      gap: 6mm;
+      align-items: flex-start;
+    }
+
+    .hex-diagram {
+      flex: 0 0 50mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5mm;
+    }
+
+    .hex-diagram svg { width: 100%; height: auto; }
+    .hex-diagram .caption {
+      font-size: 7.5pt;
+      color: #666;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+
+    .hex-steps { flex: 1; }
+
+    /* navigation-hex glyphs */
+    .nav-hex   { fill: #fff;  stroke: #1a1a1a; stroke-width: 1.2; }
+    .nav-here  { fill: #1a1a1a; }
+    .nav-num   { font-size: 6px; font-weight: 700; fill: #1a1a1a; text-anchor: middle; }
+    .nav-here-label { font-size: 5px; font-weight: 700; fill: #fff; text-anchor: middle; letter-spacing: 0.5px; }
+
+    .hex { fill: #fff; stroke: #1a1a1a; stroke-width: 1; }
+    .hex-num { font-size: 5.5px; font-weight: 700; fill: #b0b0b0; text-anchor: middle; }
+
+    /* --- Secondary structures --- */
+    .ss-grid { display: flex; flex-direction: column; gap: 2.5mm; }
+    .ss-row { display: flex; gap: 4mm; align-items: center; }
+    .ss-figure { flex: 0 0 22mm; }
+    .ss-figure svg { width: 100%; height: auto; }
+    .ss-text { flex: 1; font-size: 8.5pt; color: #333; }
+    .ss-name { font-weight: 700; color: #1a1a1a; }
+
+    .tag {
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // --- shared geometry helpers --------------------------------------------
+
+    function pt(cx, cy, r, deg) {
+      const a = (deg * Math.PI) / 180;
+      return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+    }
+
+    // flat-top hexagon outline (vertices at 0,60,...,300 degrees)
+    function hexPoints(cx, cy, r) {
+      let p = "";
+      for (let i = 0; i < 6; i++) {
+        const a = (i * 60) * Math.PI / 180;
+        p += `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)} `;
+      }
+      return p.trim();
+    }
+
+    // --- a small, unnumbered flower with selected hexes filled ---------------
+    // `fills` maps a hex number (1-19, columns left-to-right, top-to-bottom) to
+    // a colour.
+    const SS_PURPLE_DK = "#8a6cb8";   // the extreme hex
+    const SS_PURPLE    = "#b49ad6";   // a highlighted hex / left lobe
+    const SS_PURPLE_LT = "#d8cbed";   // collar / secondary highlight
+    const SS_GREEN     = "#9cc090";   // right lobe
+
+    function miniFlower(fills) {
+      const r = 9;
+      const colStep = 1.5 * r;
+      const rowStep = Math.sqrt(3) * r;
+      const counts = [3, 4, 5, 4, 3];
+      const cx0 = r + 1;
+      const cyMid = rowStep * 2.5 + 1;
+
+      let hexes = "", n = 0;
+      counts.forEach((count, c) => {
+        const cx = cx0 + c * colStep;
+        for (let k = 0; k < count; k++) {
+          n++;
+          const cy = cyMid + (k - (count - 1) / 2) * rowStep;
+          const fill = fills[n];
+          const style = fill ? ` style="fill:${fill}"` : "";
+          hexes += `<polygon class="hex" points="${hexPoints(cx, cy, r)}"${style}/>`;
+        }
+      });
+
+      const W = cx0 + 4 * colStep + r + 1;
+      const H = cyMid + rowStep * 2.5 + 1;
+      return `<svg viewBox="0 0 ${W.toFixed(1)} ${H.toFixed(1)}" preserveAspectRatio="xMidYMid meet">${hexes}</svg>`;
+    }
+
+    // --- the navigation hex: 2d6 -> direction --------------------------------
+    // Bias runs DOWN the flower (6-7 = straight down) and slightly to the left;
+    // the top is rare (12). Rotate the whole key to point the bias wherever the
+    // "common" outcomes sit on your own flower.
+    const NAV = [
+      { dir: "N",  dx:  0.0, dy: -1.0, label: "12" },
+      { dir: "NE", dx:  1.5, dy: -0.5, label: "2, 3" },
+      { dir: "SE", dx:  1.5, dy:  0.5, label: "4, 5" },
+      { dir: "S",  dx:  0.0, dy:  1.0, label: "6, 7" },
+      { dir: "SW", dx: -1.5, dy:  0.5, label: "8, 9" },
+      { dir: "NW", dx: -1.5, dy: -0.5, label: "10, 11" },
+    ];
+
+    function navHex() {
+      const r = 11;
+      const rowStep = Math.sqrt(3) * r;
+      const cx = 0, cy = 0;
+
+      let cells = "";
+      // six neighbours with their 2d6 triggers
+      NAV.forEach(({ dx, dy, label }) => {
+        const nx = cx + dx * r;
+        const ny = cy + dy * rowStep;
+        cells +=
+          `<polygon class="nav-hex" points="${hexPoints(nx, ny, r)}"/>` +
+          `<text class="nav-num" x="${nx.toFixed(2)}" y="${(ny + 2.2).toFixed(2)}">${label}</text>`;
+      });
+      // centre = current hex
+      cells +=
+        `<polygon class="nav-hex nav-here" points="${hexPoints(cx, cy, r)}"/>` +
+        `<text class="nav-here-label" x="0" y="2.2">2D6</text>`;
+
+      const pad = r + 2;
+      const W = 3 * r + 2 * pad;            // span of NW..NE columns
+      const H = 2 * rowStep + 2 * pad;
+      const vbX = -(W / 2), vbY = -(H / 2);
+      return `<svg viewBox="${vbX.toFixed(1)} ${vbY.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" `
+           + `preserveAspectRatio="xMidYMid meet">${cells}</svg>`;
+    }
+
+    // --- assemble the page ---------------------------------------------------
+    document.getElementById("root").innerHTML =
+      `<div class="page">` +
+
+        `<div class="sheet-title">Hex Flower Engine</div>` +
+
+        `<div class="columns">` +
+
+        // ================= LEFT COLUMN =================
+        `<div class="col col-left">` +
+
+        // ---------- Hex Flower Engine ----------
+        `<section>` +
+          `<div class="section-head">Moving Through the Flower</div>` +
+          `<div class="hex-engine">` +
+            `<div class="hex-diagram">` +
+              navHex() +
+            `</div>` +
+            `<div class="hex-steps">` +
+              `<p><span class="tag">Roll and move.</span> Roll 2d6 and move that way from your ` +
+              `current hex.</p>` +
+              `<p><span class="tag">Edges wrap.</span> If a move would leave the flower, re-enter ` +
+              `from the opposite edge. The lone exceptions are straight off the top or bottom: ` +
+              `there you stay put.</p>` +
+              `<p><span class="tag">Weighted drift.</span> The roll drifts down (6-7) and rarely ` +
+              `up (12), with a slight pull left, so put common outcomes bottom-left and rare ones ` +
+              `up top.</p>` +
+            `</div>` +
+          `</div>` +
+        `</section>` +
+
+        `</div>` + // end col-left
+
+        // ================= RIGHT COLUMN =================
+        `<div class="col col-right">` +
+
+        // ---------- Secondary structures ----------
+        `<section>` +
+          `<div class="section-head">Secondary Structures in the Hex Flower</div>` +
+          `<div class="ss-grid">` +
+            `<div class="ss-row">` +
+              `<div class="ss-figure">${miniFlower({ 8: SS_PURPLE_DK, 4: SS_PURPLE_LT, 9: SS_PURPLE_LT, 13: SS_PURPLE_LT })}</div>` +
+              `<div class="ss-text"><span class="ss-name">Collar.</span> A ring of near-extreme ` +
+              `outcomes around the most extreme hex. In a terrain flower the Mountains hex wears a ` +
+              `collar of Hills. It ring-fences the extreme outcome and can telegraph it.</div>` +
+            `</div>` +
+            `<div class="ss-row">` +
+              `<div class="ss-figure">${miniFlower({ 1: SS_PURPLE, 2: SS_PURPLE, 4: SS_PURPLE, 5: SS_PURPLE, 13: SS_GREEN, 14: SS_GREEN, 17: SS_GREEN, 18: SS_GREEN })}</div>` +
+              `<div class="ss-text"><span class="ss-name">Lobes.</span> Give the upper-left and ` +
+              `upper-right lobes their own themes, deliberately out of sync with the rest of the ` +
+              `flower. In the terrain flower the left lobe is arid and the right lobe is trees, ` +
+              `adding non-homogeneity.</div>` +
+            `</div>` +
+            `<div class="ss-row">` +
+              `<div class="ss-figure">${miniFlower({ 10: SS_PURPLE })}</div>` +
+              `<div class="ss-text"><span class="ss-name">Central hex.</span> A wild-card space for ` +
+              `rare other events outside the standard outcomes: a bog, lake, chasm or meteor crater. ` +
+              `It can also be a diversion, a brief respite such as a dungeon out in the wilderness.</div>` +
+            `</div>` +
+            `<div class="ss-row">` +
+              `<div class="ss-figure">${miniFlower({ 12: SS_PURPLE, 10: SS_PURPLE_LT })}</div>` +
+              `<div class="ss-text"><span class="ss-name">Starting hex.</span> Usually set as far ` +
+              `from the extreme outcome as possible, normally the bottom hex, sometimes the middle one.</div>` +
+            `</div>` +
+          `</div>` +
+        `</section>` +
+
+        `</div>` + // end col-right
+
+        `</div>` + // end columns
+
+      `</div>`;
+  </script>
+</body>
+</html>
